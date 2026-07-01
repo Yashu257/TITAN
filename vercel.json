@@ -1,12 +1,16 @@
 {
   "buildCommand": "cd cube-of-joy-main/cube-of-joy-main && npm install && npm run build",
-  "outputDirectory": "cube-of-joy-main/cube-of-joy-main/dist/client",
   "installCommand": "cd cube-of-joy-main/cube-of-joy-main && npm install",
   "framework": null,
-  "rewrites": [
+  "functions": {
+    "cube-of-joy-main/cube-of-joy-main/dist/server/server.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "/(.*)",
+      "dest": "/cube-of-joy-main/cube-of-joy-main/dist/server/server.js"
     }
   ]
 }
