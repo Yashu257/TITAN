@@ -11,7 +11,7 @@ export type User = {
   email: string;
 };
 
-const API_URL = '/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 // ─── User helpers ─────────────────────────────────────────────────────────────
 
