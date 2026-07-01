@@ -1,5 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { getLocalUser } from "@/lib/selfie-store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -12,14 +14,23 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const user = getLocalUser();
+    if (!user) {
+      navigate({ to: "/login" });
+    }
+  }, []);
+
   return (
     <div 
-      className="flex h-screen flex-col items-center justify-center p-4 sm:p-6 md:p-8 bg-black text-white bg-no-repeat bg-cover bg-center overflow-hidden"
-      style={{ 
+      className="flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 bg-black text-white overflow-hidden"
+      style={{
+        height: '100dvh',
         backgroundImage: "url('/PHOTOBOOTH_02.png')",
         backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
+        backgroundPosition: 'center center',
+        backgroundRepeat: 'no-repeat'
       }}
     >
       <div className="text-center space-y-1 max-w-6xl w-full px-2 flex flex-col items-center justify-center h-full">

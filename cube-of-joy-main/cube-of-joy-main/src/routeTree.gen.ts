@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ThanksRouteImport } from './routes/thanks'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as DisplayRouteImport } from './routes/display'
 import { Route as CaptureRouteImport } from './routes/capture'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -18,6 +19,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const ThanksRoute = ThanksRouteImport.update({
   id: '/thanks',
   path: '/thanks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DisplayRoute = DisplayRouteImport.update({
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/capture': typeof CaptureRoute
   '/display': typeof DisplayRoute
+  '/login': typeof LoginRoute
   '/thanks': typeof ThanksRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/capture': typeof CaptureRoute
   '/display': typeof DisplayRoute
+  '/login': typeof LoginRoute
   '/thanks': typeof ThanksRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,22 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/capture': typeof CaptureRoute
   '/display': typeof DisplayRoute
+  '/login': typeof LoginRoute
   '/thanks': typeof ThanksRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/capture' | '/display' | '/thanks'
+  fullPaths: '/' | '/admin' | '/capture' | '/display' | '/login' | '/thanks'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/capture' | '/display' | '/thanks'
-  id: '__root__' | '/' | '/admin' | '/capture' | '/display' | '/thanks'
+  to: '/' | '/admin' | '/capture' | '/display' | '/login' | '/thanks'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/capture'
+    | '/display'
+    | '/login'
+    | '/thanks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +92,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   CaptureRoute: typeof CaptureRoute
   DisplayRoute: typeof DisplayRoute
+  LoginRoute: typeof LoginRoute
   ThanksRoute: typeof ThanksRoute
 }
 
@@ -86,6 +103,13 @@ declare module '@tanstack/react-router' {
       path: '/thanks'
       fullPath: '/thanks'
       preLoaderRoute: typeof ThanksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/display': {
@@ -124,6 +148,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   CaptureRoute: CaptureRoute,
   DisplayRoute: DisplayRoute,
+  LoginRoute: LoginRoute,
   ThanksRoute: ThanksRoute,
 }
 export const routeTree = rootRouteImport

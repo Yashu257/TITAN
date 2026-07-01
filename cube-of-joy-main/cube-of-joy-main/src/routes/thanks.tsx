@@ -26,19 +26,18 @@ function ThanksPage() {
     getSelfie(id).then((s) => {
       if (!cancelled) setSelfie(s ?? null);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [id]);
 
   return (
-    <div 
-      className="min-h-screen px-2 sm:px-4 py-8 sm:py-12 bg-no-repeat bg-cover bg-center"
-      style={{ 
+    <div
+      className="px-2 sm:px-4 py-8 sm:py-12 bg-no-repeat bg-cover bg-center"
+      style={{
+        minHeight: '100dvh',
         backgroundImage: "url('/PHOTOBOOTH_02_background.png')",
         backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
+        backgroundPosition: 'center center',
+        backgroundRepeat: 'no-repeat'
       }}
     >
       <div className="mx-auto flex max-w-md flex-col items-center text-center">

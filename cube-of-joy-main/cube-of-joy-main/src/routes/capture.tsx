@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { addSelfie } from "@/lib/selfie-store";
+import { addSelfie, getLocalUser, listSelfies } from "@/lib/selfie-store";
+
+const MAX_SELFIES = 6;
 
 export const Route = createFileRoute("/capture")({
   head: () => ({
@@ -16,12 +18,25 @@ const CAPTURE_SIZE = 1280;
 
 function CapturePage() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!getLocalUser()) navigate({ to: "/login" });
+  }, []);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [limitReached, setLimitReached] = useState(false);
+
+  useEffect(() => {
+    const user = getLocalUser();
+    if (!user) return;
+    listSelfies('selfie', user.id).then((list) => {
+      if (list.length >= MAX_SELFIES) setLimitReached(true);
+    });
+  }, []);
 
   useEffect(() => {
     if (preview) return;
@@ -32,7 +47,12 @@ function CapturePage() {
           throw new Error("Camera not supported on this device.");
         }
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user" },
+          video: {
+            facingMode: "user",
+            aspectRatio: { ideal: 16 / 9 },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
           audio: false,
         });
         if (cancelled) {
@@ -61,20 +81,19 @@ function CapturePage() {
   function capture() {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = CAPTURE_SIZE;
-    canvas.height = CAPTURE_SIZE;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-    const side = Math.min(vw, vh);
-    const sx = (vw - side) / 2;
-    const sy = (vh - side) / 2;
+    const canvas = document.createElement("canvas");
+    // Capture full video frame (landscape) — matches exactly what the live preview shows
+    canvas.width = vw;
+    canvas.height = vh;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    // Mirror horizontally so the saved image is in the correct (non-mirrored) orientation
     ctx.save();
-    ctx.translate(CAPTURE_SIZE, 0);
+    ctx.translate(vw, 0);
     ctx.scale(-1, 1);
-    ctx.drawImage(video, sx, sy, side, side, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE);
+    ctx.drawImage(video, 0, 0, vw, vh);
     ctx.restore();
     const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
     setPreview(dataUrl);
@@ -117,28 +136,34 @@ function CapturePage() {
     img.src = preview;
     await new Promise((resolve) => (img.onload = resolve));
     
-    // Draw selfie using object-cover logic but ONLY for the top 65% of the canvas
-    const drawZoneHeight = height * 0.65;
-    const imgAspect = img.width / img.height;
-    const zoneAspect = width / drawZoneHeight;
-    let drawWidth = width;
-    let drawHeight = drawZoneHeight;
+    // Photo zone matches CSS: top 17.5%, height 40% of frame
+    const drawZoneTop = height * 0.175;
+    const drawZoneHeight = height * 0.40;
+    const imgAspect = img.width / img.height;   // landscape (e.g. 1.78 for 16:9)
+    const zoneAspect = width / drawZoneHeight;   // zone aspect (e.g. 1.53)
+    let drawWidth: number;
+    let drawHeight: number;
     let offsetX = 0;
     let offsetY = 0;
 
     if (imgAspect > zoneAspect) {
+      // Image wider than zone → scale to fill zone height, crop sides
+      drawHeight = drawZoneHeight;
       drawWidth = drawZoneHeight * imgAspect;
       offsetX = (width - drawWidth) / 2;
     } else {
+      // Image taller than zone → scale to fill zone width, crop top/bottom
+      drawWidth = width;
       drawHeight = width / imgAspect;
       offsetY = (drawZoneHeight - drawHeight) / 2;
     }
 
     ctx.save();
-    // Translate context to center the image horizontally but flip horizontally (mirror)
-    ctx.translate(width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(img, -offsetX, offsetY, drawWidth, drawHeight);
+    // Clip to photo zone so selfie doesn't bleed outside the frame window
+    ctx.rect(0, drawZoneTop, width, drawZoneHeight);
+    ctx.clip();
+    // Image is already correctly oriented (mirrored during capture) — draw directly
+    ctx.drawImage(img, offsetX, drawZoneTop + offsetY, drawWidth, drawHeight);
     ctx.restore();
 
     // Draw frame on top
@@ -156,6 +181,11 @@ function CapturePage() {
     setSubmitting(true);
     try {
       const selfie = await addSelfie(preview);
+      const user = getLocalUser();
+      if (user) {
+        const list = await listSelfies('selfie', user.id);
+        if (list.length >= MAX_SELFIES) setLimitReached(true);
+      }
       navigate({ to: "/thanks", search: { id: selfie.id } });
     } catch (e) {
       console.error(e);
@@ -164,10 +194,37 @@ function CapturePage() {
     }
   }
 
+  if (limitReached) {
+    return (
+      <div
+        className="h-[100dvh] w-full flex flex-col items-center justify-center px-6 text-center"
+        style={{
+          backgroundImage: "url('/PHOTOBOOTH_02_background.png')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
+        <div className="rounded-2xl border border-white/20 bg-black/60 backdrop-blur-md p-8 max-w-sm w-full shadow-xl flex flex-col items-center gap-4">
+          <div className="text-5xl">📸</div>
+          <h2 className="text-xl font-bold text-white">You're all set!</h2>
+          <p className="text-sm text-white/70">
+            You've reached the <span className="text-white font-semibold">6-image limit</span> — your cube is fully loaded. No more selfies can be added.
+          </p>
+          <Link to="/display" className="btn-neon w-full text-sm mt-2 text-center">
+            View My Cube →
+          </Link>
+          <Link to="/" className="text-xs text-white/40 hover:text-white/70 transition">
+            ← Back to home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div 
-      className="h-[100dvh] w-full overflow-hidden flex flex-col bg-no-repeat bg-cover bg-center relative"
-      style={{ 
+    <div
+      className="h-[100dvh] w-full overflow-hidden flex flex-col items-center justify-center bg-no-repeat bg-cover bg-center relative"
+      style={{
         backgroundImage: "url('/PHOTOBOOTH_02_background.png')",
         backgroundSize: 'cover',
         backgroundPosition: 'center'
@@ -176,50 +233,82 @@ function CapturePage() {
       <div className="absolute top-0 left-2 sm:left-4 md:left-6 z-20">
         <img src="/titan-logo-63.png" alt="Titan Company" className="h-16 w-auto sm:h-20 md:h-24 lg:h-28" />
       </div>
-      
+
       <div className="absolute top-2 right-2 sm:top-4 sm:right-4 md:top-8 md:right-8 z-20">
         <Link to="/" className="text-[0.6rem] sm:text-xs uppercase tracking-[0.2em] sm:tracking-[0.25em] text-muted-foreground hover:text-foreground">
           ← Blocks of Brilliance
         </Link>
       </div>
-      
-      <div className="mx-auto flex w-full flex-col items-center h-full px-2 sm:px-4 py-2 sm:py-4 md:py-8">
-        <div className="glass-card neon-glow w-full max-w-md flex-1 min-h-0 overflow-hidden flex items-center justify-center">
-          <div className="relative w-full h-full bg-black flex items-center justify-center">
-            {preview ? (
-              <>
-                <img src={preview} alt="Your selfie" className="absolute h-[65%] w-full object-cover z-0" style={{ top: "17.5%", left: "0", transform: "scaleX(-1)" }} />
-                <img src="/PHOTOBOOTH_01.png" alt="Frame" className="relative w-full h-full object-fill z-10 pointer-events-none" />
-              </>
-            ) : (
-              <>
-                <video
-                  ref={videoRef}
-                  className="absolute h-[65%] w-full object-cover z-0"
-                  style={{ top: "17.5%", left: "0", transform: "scaleX(-1)" }}
-                  playsInline
-                  muted
-                />
-                <img src="/PHOTOBOOTH_01.png" alt="Frame" className="relative w-full h-full object-fill z-10 pointer-events-none" />
-                {!ready && !error && (
-                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 text-sm text-muted-foreground">
-                    Starting camera…
+
+      {/* Camera panel — same structure as PHP photobooth: video fills panel, frame sits on top */}
+      <div className="flex flex-col items-center gap-3 sm:gap-4 w-full px-2 sm:px-4">
+        <div
+          className="glass-card neon-glow overflow-hidden relative bg-black"
+          style={{
+            aspectRatio: '643 / 1053',
+            maxHeight: 'calc(100dvh - 120px)',
+            width: 'min(100%, calc((100dvh - 120px) * 643 / 1053))',
+          }}
+        >
+          {preview ? (
+            <>
+              {/* Frame base — always visible */}
+              <img
+                src="/PHOTOBOOTH_01.png"
+                alt="Frame"
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10"
+              />
+              {/* Captured selfie — already correctly oriented, no CSS mirror needed */}
+              <img
+                src={preview}
+                alt="Your selfie"
+                className="absolute w-full z-0"
+                style={{
+                  top: "17.5%",
+                  height: "40%",
+                  objectFit: "cover",
+                }}
+              />
+            </>
+          ) : (
+            <>
+              {/* Frame base */}
+              <img
+                src="/PHOTOBOOTH_01.png"
+                alt="Frame"
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10"
+              />
+              {/* Live camera — object-cover fills zone with no black bars */}
+              <video
+                ref={videoRef}
+                className="absolute w-full z-0"
+                style={{
+                  top: "17.5%",
+                  height: "40%",
+                  objectFit: "cover",
+                  transform: "scaleX(-1)",
+                }}
+                playsInline
+                muted
+              />
+              {!ready && !error && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 text-sm text-muted-foreground">
+                  Starting camera…
+                </div>
+              )}
+              {error && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/80 p-6 text-center">
+                  <div className="text-sm font-medium text-destructive">{error}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Allow camera access in your browser settings and reload.
                   </div>
-                )}
-                {error && (
-                  <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/80 p-6 text-center">
-                    <div className="text-sm font-medium text-destructive">{error}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Allow camera access in your browser settings and reload.
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
-        <div className="mt-3 sm:mt-4 md:mt-6 flex w-full max-w-sm gap-2 sm:gap-3 shrink-0 px-2 sm:px-0">
+        <div className="flex w-full max-w-sm gap-2 sm:gap-3 px-2 sm:px-0">
           {preview ? (
             <>
               <button
