@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: titan-backend
+    name: titan-cube-backend
     env: node
     plan: free
     buildCommand: npm install
@@ -18,3 +18,17 @@ services:
         value: cube_of_joy
       - key: DB_PORT
         value: 3306
+      - key: PORT
+        value: 10000
+  
+  - type: web
+    name: titan-cube-frontend
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run preview
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_API_URL
+        value: https://titan-cube-backend.onrender.com
